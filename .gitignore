@@ -1,0 +1,14 @@
+# Ignore secret keys and generated encryption artifacts
+*.key
+*.encrypted
+*.decrypted
+
+# Python cache and metadata
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS files
+.DS_Store
+Thumbs.db

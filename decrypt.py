@@ -1,21 +1,28 @@
 from pathlib import Path
 from cryptography.fernet import InvalidToken
-from utils import get_fernet
+from utils import get_fernet, get_fernet_from_password
 
 
-def decrypt_file(file_path: str, key_path: str = "secret.key"):
+def decrypt_file(file_path: str, key_path: str = "secret.key", password: str = None):
     encrypted_path = Path(file_path)
     if not encrypted_path.exists():
         print(f"File not found: {encrypted_path}")
         return
 
-    fernet = get_fernet(Path(key_path))
     encrypted_data = encrypted_path.read_bytes()
 
     try:
-        decrypted_data = fernet.decrypt(encrypted_data)
+        if password:
+            # first 16 bytes are salt
+            salt = encrypted_data[:16]
+            token = encrypted_data[16:]
+            fernet = get_fernet_from_password(password, salt)
+            decrypted_data = fernet.decrypt(token)
+        else:
+            fernet = get_fernet(Path(key_path))
+            decrypted_data = fernet.decrypt(encrypted_data)
     except InvalidToken:
-        print("Decryption failed: invalid key or corrupted file.")
+        print("Decryption failed: invalid key/password or corrupted file.")
         return
 
     if encrypted_path.suffix == ".encrypted":

@@ -16,6 +16,8 @@ class EncryptionApp(tk.Tk):
 
         self.file_path = None
         self.key_path = tk.StringVar(value="secret.key")
+        self.mode = tk.StringVar(value="key")  # or 'password'
+        self.password_var = tk.StringVar()
 
         self._build_widgets()
 
@@ -35,21 +37,35 @@ class EncryptionApp(tk.Tk):
         self.file_label = tk.Label(frm, text="(none)", anchor="w", width=40, relief=tk.SUNKEN, font=label_font, wraplength=360)
         self.file_label.grid(row=0, column=1, columnspan=3, sticky="we", padx=(6, 0))
 
-        tk.Button(frm, text="Browse...", command=self.browse_file, bg="#1976D2", fg="white", activebackground="#115293", font=btn_font, bd=1, relief=tk.RAISED).grid(row=0, column=4, padx=6)
+        tk.Button(frm, text="Browse...", command=self.browse_file, bg="#B7BBBE", fg="white", activebackground="#515356", font=btn_font, bd=1, relief=tk.RAISED).grid(row=0, column=4, padx=6)
 
+        # Key file entry (visible when mode == 'key')
         tk.Label(frm, text="Key file:", font=label_font).grid(row=1, column=0, sticky="w", pady=(8, 0))
         self.key_entry = tk.Entry(frm, textvariable=self.key_path, font=label_font)
         self.key_entry.grid(row=1, column=1, columnspan=3, sticky="we", padx=(6, 0), pady=(8, 0))
-        tk.Button(frm, text="Browse Key...", command=self.browse_key, bg="#1976D2", fg="white", activebackground="#115293", font=btn_font, bd=1, relief=tk.RAISED).grid(row=1, column=4, padx=6, pady=(8, 0))
+        self.key_browse_btn = tk.Button(frm, text="Browse Key...", command=self.browse_key, bg="#1976D2", fg="white", activebackground="#115293", font=btn_font, bd=1, relief=tk.RAISED)
+        self.key_browse_btn.grid(row=1, column=4, padx=6, pady=(8, 0))
+
+        # Password entry (visible when mode == 'password')
+        self.pw_label = tk.Label(frm, text="Password:", font=label_font)
+        self.pw_entry = tk.Entry(frm, textvariable=self.password_var, font=label_font, show="*")
+
+        # Mode selector
+        tk.Label(frm, text="Mode:", font=label_font).grid(row=2, column=0, sticky="w", pady=(12, 0))
+        tk.Radiobutton(frm, text="Key file", variable=self.mode, value="key", command=self._on_mode_change, font=label_font).grid(row=2, column=1, sticky="w", pady=(12, 0))
+        tk.Radiobutton(frm, text="Password", variable=self.mode, value="password", command=self._on_mode_change, font=label_font).grid(row=2, column=2, sticky="w", pady=(12, 0))
 
         self.encrypt_btn = tk.Button(frm, text="Encrypt", width=14, command=lambda: self._run_in_thread(self.encrypt), font=btn_font, bg="#2E7D32", fg="white")
-        self.encrypt_btn.grid(row=2, column=1, pady=(16, 0))
+        self.encrypt_btn.grid(row=3, column=1, pady=(16, 0))
 
         self.decrypt_btn = tk.Button(frm, text="Decrypt", width=14, command=lambda: self._run_in_thread(self.decrypt), font=btn_font, bg="#C62828", fg="white")
-        self.decrypt_btn.grid(row=2, column=2, pady=(16, 0))
+        self.decrypt_btn.grid(row=3, column=2, pady=(16, 0))
 
         self.status_label = tk.Label(frm, text="Ready", anchor="w", font=label_font)
-        self.status_label.grid(row=3, column=0, columnspan=5, sticky="we", pady=(14, 0))
+        self.status_label.grid(row=4, column=0, columnspan=5, sticky="we", pady=(14, 0))
+
+        # initialize mode UI
+        self._on_mode_change()
 
     def browse_file(self):
         path = filedialog.askopenfilename(title="Select file")
@@ -61,6 +77,23 @@ class EncryptionApp(tk.Tk):
         path = filedialog.askopenfilename(title="Select key file", filetypes=[("Key files", "*.key"), ("All files", "*")])
         if path:
             self.key_path.set(path)
+
+    def _on_mode_change(self):
+        mode = self.mode.get()
+        if mode == "password":
+            # hide key widgets
+            self.key_entry.grid_remove()
+            self.key_browse_btn.grid_remove()
+            # show password widgets in the same area
+            self.pw_label.grid(row=1, column=0, sticky="w", pady=(8, 0))
+            self.pw_entry.grid(row=1, column=1, columnspan=3, sticky="we", padx=(6, 0), pady=(8, 0))
+        else:
+            # show key widgets
+            self.key_entry.grid()
+            self.key_browse_btn.grid()
+            # hide password widgets
+            self.pw_label.grid_remove()
+            self.pw_entry.grid_remove()
 
     def _run_in_thread(self, target):
         t = threading.Thread(target=target, daemon=True)
@@ -87,13 +120,21 @@ class EncryptionApp(tk.Tk):
         if not self.file_path:
             messagebox.showerror("Error", "No file selected to encrypt.")
             return
-
+        mode = self.mode.get()
         key = self.key_path.get().strip() or "secret.key"
+        password = self.password_var.get() if mode == "password" else None
+
+        if mode == "password" and not password:
+            messagebox.showerror("Error", "Please enter a password for encryption.")
+            return
         self._disable_buttons()
         self._set_status("Encrypting...")
 
         try:
-            encrypt_file(self.file_path, key)
+            if mode == "password":
+                encrypt_file(self.file_path, password=password)
+            else:
+                encrypt_file(self.file_path, key)
             enc_path = self.file_path + ".encrypted"
             if os.path.exists(enc_path):
                 messagebox.showinfo("Success", f"File encrypted: {enc_path}")
@@ -111,13 +152,21 @@ class EncryptionApp(tk.Tk):
         if not self.file_path:
             messagebox.showerror("Error", "No file selected to decrypt.")
             return
-
+        mode = self.mode.get()
         key = self.key_path.get().strip() or "secret.key"
+        password = self.password_var.get() if mode == "password" else None
+
+        if mode == "password" and not password:
+            messagebox.showerror("Error", "Please enter a password for decryption.")
+            return
         self._disable_buttons()
         self._set_status("Decrypting...")
 
         try:
-            decrypt_file(self.file_path, key)
+            if mode == "password":
+                decrypt_file(self.file_path, password=password)
+            else:
+                decrypt_file(self.file_path, key)
             # determine output path
             if self.file_path.endswith('.encrypted'):
                 out = os.path.splitext(self.file_path)[0] + ".decrypted"

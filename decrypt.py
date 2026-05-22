@@ -1,6 +1,6 @@
 from pathlib import Path
 from cryptography.fernet import InvalidToken
-from utils import get_fernet, get_fernet_from_password
+from utils import get_fernet, get_fernet_from_password, unpack_file_payload
 
 
 def decrypt_file(file_path: str, key_path: str = "secret.key", password: str = None):
@@ -25,10 +25,15 @@ def decrypt_file(file_path: str, key_path: str = "secret.key", password: str = N
         print("Decryption failed: invalid key/password or corrupted file.")
         return
 
-    if encrypted_path.suffix == ".encrypted":
+    original_name, file_data = unpack_file_payload(decrypted_data)
+    if original_name:
+        decrypted_file_path = encrypted_path.with_name(original_name)
+    elif encrypted_path.suffix == ".encrypted":
         decrypted_file_path = encrypted_path.with_suffix(".decrypted")
     else:
         decrypted_file_path = encrypted_path.with_name(encrypted_path.name + ".decrypted")
 
-    decrypted_file_path.write_bytes(decrypted_data)
+    decrypted_file_path.write_bytes(file_data)
     print(f"File decrypted successfully: {decrypted_file_path}")
+    return decrypted_file_path
+

@@ -69,7 +69,12 @@ py -m pip install dist\secure_file_encryption_tool-0.1.0-py3-none-any.whl
 - Choose either `Key file` mode or `Password` mode.
 - Click `Encrypt` or `Decrypt`.
 
+## User Manual
+
+For detailed installation, usage, and troubleshooting steps, see [USER_MANUAL.md](USER_MANUAL.md).
+
 ## Notes
 
 - In key mode, the app uses `secret.key` by default and creates one automatically if missing.
 - In password mode, the app stores a salt prefix inside the encrypted file and derives the key from the password.
+- On decryption, the app restores the original file name and extension when the encrypted file was created by this application.

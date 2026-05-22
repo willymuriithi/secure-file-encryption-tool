@@ -132,10 +132,10 @@ class EncryptionApp(tk.Tk):
 
         try:
             if mode == "password":
-                encrypt_file(self.file_path, password=password)
+                encrypted_path = encrypt_file(self.file_path, password=password)
             else:
-                encrypt_file(self.file_path, key)
-            enc_path = self.file_path + ".encrypted"
+                encrypted_path = encrypt_file(self.file_path, key)
+            enc_path = str(encrypted_path) if encrypted_path is not None else self.file_path + ".encrypted"
             if os.path.exists(enc_path):
                 messagebox.showinfo("Success", f"File encrypted: {enc_path}")
                 self._set_status(f"Encrypted: {enc_path}")
@@ -164,16 +164,12 @@ class EncryptionApp(tk.Tk):
 
         try:
             if mode == "password":
-                decrypt_file(self.file_path, password=password)
+                decrypted_path = decrypt_file(self.file_path, password=password)
             else:
-                decrypt_file(self.file_path, key)
-            # determine output path
-            if self.file_path.endswith('.encrypted'):
-                out = os.path.splitext(self.file_path)[0] + ".decrypted"
-            else:
-                out = self.file_path + ".decrypted"
+                decrypted_path = decrypt_file(self.file_path, key)
+            out = str(decrypted_path) if decrypted_path is not None else None
 
-            if os.path.exists(out):
+            if out and os.path.exists(out):
                 messagebox.showinfo("Success", f"File decrypted: {out}")
                 self._set_status(f"Decrypted: {out}")
             else:

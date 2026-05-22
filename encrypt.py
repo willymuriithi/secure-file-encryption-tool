@@ -1,5 +1,5 @@
 from pathlib import Path
-from utils import get_fernet, get_fernet_from_password, generate_salt
+from utils import get_fernet, get_fernet_from_password, generate_salt, pack_file_payload
 
 
 def encrypt_file(file_path: str, key_path: str = "secret.key", password: str = None):
@@ -9,20 +9,19 @@ def encrypt_file(file_path: str, key_path: str = "secret.key", password: str = N
         return
 
     data = source_path.read_bytes()
+    payload = pack_file_payload(source_path.name, data)
+    encrypted_file_path = source_path.with_name(source_path.name + ".encrypted")
 
     if password:
-        # Password-based encryption: prefix file with salt
         salt = generate_salt()
         fernet = get_fernet_from_password(password, salt)
-        encrypted_data = fernet.encrypt(data)
-        encrypted_file_path = source_path.with_name(source_path.name + ".encrypted")
-        # store salt + token
+        encrypted_data = fernet.encrypt(payload)
         encrypted_file_path.write_bytes(salt + encrypted_data)
     else:
         fernet = get_fernet(Path(key_path))
-        encrypted_data = fernet.encrypt(data)
-        encrypted_file_path = source_path.with_name(source_path.name + ".encrypted")
+        encrypted_data = fernet.encrypt(payload)
         encrypted_file_path.write_bytes(encrypted_data)
 
     print(f"File encrypted successfully: {encrypted_file_path}")
+    return encrypted_file_path
             

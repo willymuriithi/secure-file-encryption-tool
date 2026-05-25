@@ -8,6 +8,13 @@ if %ERRORLEVEL% neq 0 (
     exit /b %ERRORLEVEL%
 )
 
+REM Ensure tkinterdnd2 is available for drag-and-drop support in the GUI
+python -m pip install --upgrade tkinterdnd2
+if %ERRORLEVEL% neq 0 (
+    echo Failed to install tkinterdnd2.
+    exit /b %ERRORLEVEL%
+)
+
 python -m PyInstaller --onefile --windowed --name SecureFileEncryptionTool gui.py
 if %ERRORLEVEL% neq 0 (
     echo PyInstaller build failed.

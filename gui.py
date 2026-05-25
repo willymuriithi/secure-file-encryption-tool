@@ -6,9 +6,17 @@ from tkinter import filedialog, messagebox
 from encrypt import encrypt_file
 from decrypt import decrypt_file
 
+# Try to import tkinterdnd2 for drag-and-drop support. If unavailable, continue without DND.
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    DND_AVAILABLE = True
+except Exception:
+    DND_AVAILABLE = False
 
-class EncryptionApp(tk.Tk):
+
+class EncryptionApp(TkinterDnD.Tk if DND_AVAILABLE else tk.Tk):
     def __init__(self):
+        # If using TkinterDnD, initialize that; else normal Tk
         super().__init__()
         self.title("Secure File Encryption Tool")
         self.geometry("520x200")
@@ -21,6 +29,16 @@ class EncryptionApp(tk.Tk):
         self.password_var = tk.StringVar()
 
         self._build_widgets()
+
+        # If DND available, register drop target for file label
+        if DND_AVAILABLE:
+            try:
+                # register drop target on the file label so users can drop files onto it
+                self.file_label.drop_target_register(DND_FILES)
+                self.file_label.dnd_bind('<<Drop>>', self._on_drop)
+            except Exception:
+                # ignore any DND registration errors and continue
+                pass
 
     def _build_widgets(self):
         frm = tk.Frame(self, padx=12, pady=12)
@@ -83,6 +101,38 @@ class EncryptionApp(tk.Tk):
     def clear_selection(self):
         self.file_paths = []
         self.file_label.config(text="(none)")
+
+    def _on_drop(self, event):
+        """Handle files dropped onto the widget. Supports multiple files."""
+        try:
+            # event.data may be a Tcl list; use tk.splitlist to properly parse paths
+            dropped = self.tk.splitlist(event.data)
+            # Filter to existing files only
+            paths = [p for p in dropped if os.path.isfile(p)]
+            if not paths:
+                messagebox.showwarning("Drop ignored", "No valid files were dropped.")
+                return
+            self.file_paths = paths
+            if len(self.file_paths) == 1:
+                display = self.file_paths[0]
+            else:
+                display = f"{len(self.file_paths)} files selected"
+            self.file_label.config(text=display)
+        except Exception as e:
+            # best-effort: sometimes event.data is a string of space-separated paths
+            try:
+                raw = event.data
+                # attempt to split by spaces and strip braces
+                parts = [p.strip('{}') for p in raw.split()]
+                paths = [p for p in parts if os.path.isfile(p)]
+                if paths:
+                    self.file_paths = paths
+                    display = f"{len(self.file_paths)} files selected" if len(self.file_paths) > 1 else self.file_paths[0]
+                    self.file_label.config(text=display)
+                    return
+            except Exception:
+                pass
+            messagebox.showerror("Drop Error", f"Failed to process dropped files: {e}")
 
     def browse_key(self):
         path = filedialog.askopenfilename(title="Select key file", filetypes=[("Key files", "*.key"), ("All files", "*")])

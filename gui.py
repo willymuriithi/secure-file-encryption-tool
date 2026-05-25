@@ -14,7 +14,8 @@ class EncryptionApp(tk.Tk):
         self.geometry("520x200")
         self.resizable(False, False)
 
-        self.file_path = None
+        # support multiple files
+        self.file_paths = []
         self.key_path = tk.StringVar(value="secret.key")
         self.mode = tk.StringVar(value="key")  # or 'password'
         self.password_var = tk.StringVar()
@@ -33,11 +34,12 @@ class EncryptionApp(tk.Tk):
         label_font = ("Segoe UI", 10)
         btn_font = ("Segoe UI", 10, "bold")
 
-        tk.Label(frm, text="Selected file:", font=label_font).grid(row=0, column=0, sticky="w")
+        tk.Label(frm, text="Selected file(s):", font=label_font).grid(row=0, column=0, sticky="w")
         self.file_label = tk.Label(frm, text="(none)", anchor="w", width=40, relief=tk.SUNKEN, font=label_font, wraplength=360)
         self.file_label.grid(row=0, column=1, columnspan=3, sticky="we", padx=(6, 0))
 
         tk.Button(frm, text="Browse...", command=self.browse_file, bg="#B7BBBE", fg="white", activebackground="#515356", font=btn_font, bd=1, relief=tk.RAISED).grid(row=0, column=4, padx=6)
+        tk.Button(frm, text="Clear", command=self.clear_selection, bg="#9E9E9E", fg="white", activebackground="#6F6F6F", font=btn_font, bd=1, relief=tk.RAISED).grid(row=0, column=5, padx=(2,0))
 
         # Key file entry (visible when mode == 'key')
         tk.Label(frm, text="Key file:", font=label_font).grid(row=1, column=0, sticky="w", pady=(8, 0))
@@ -68,10 +70,19 @@ class EncryptionApp(tk.Tk):
         self._on_mode_change()
 
     def browse_file(self):
-        path = filedialog.askopenfilename(title="Select file")
-        if path:
-            self.file_path = path
-            self.file_label.config(text=path)
+        paths = filedialog.askopenfilenames(title="Select file(s)")
+        if paths:
+            # askopenfilenames returns a tuple
+            self.file_paths = list(paths)
+            if len(self.file_paths) == 1:
+                display = self.file_paths[0]
+            else:
+                display = f"{len(self.file_paths)} files selected"
+            self.file_label.config(text=display)
+
+    def clear_selection(self):
+        self.file_paths = []
+        self.file_label.config(text="(none)")
 
     def browse_key(self):
         path = filedialog.askopenfilename(title="Select key file", filetypes=[("Key files", "*.key"), ("All files", "*")])
@@ -117,8 +128,8 @@ class EncryptionApp(tk.Tk):
         self.after(0, _)
 
     def encrypt(self):
-        if not self.file_path:
-            messagebox.showerror("Error", "No file selected to encrypt.")
+        if not self.file_paths:
+            messagebox.showerror("Error", "No file(s) selected to encrypt.")
             return
         mode = self.mode.get()
         key = self.key_path.get().strip() or "secret.key"
@@ -130,18 +141,33 @@ class EncryptionApp(tk.Tk):
         self._disable_buttons()
         self._set_status("Encrypting...")
 
+        successes = []
+        failures = []
+        total = len(self.file_paths)
         try:
-            if mode == "password":
-                encrypted_path = encrypt_file(self.file_path, password=password)
-            else:
-                encrypted_path = encrypt_file(self.file_path, key)
-            enc_path = str(encrypted_path) if encrypted_path is not None else self.file_path + ".encrypted"
-            if os.path.exists(enc_path):
-                messagebox.showinfo("Success", f"File encrypted: {enc_path}")
-                self._set_status(f"Encrypted: {enc_path}")
-            else:
-                messagebox.showwarning("Warning", "Encryption completed but output file not found. Check console for details.")
-                self._set_status("Encryption finished (no output found)")
+            for idx, fp in enumerate(self.file_paths, start=1):
+                self._set_status(f"Encrypting {idx}/{total}: {os.path.basename(fp)}")
+                try:
+                    if mode == "password":
+                        result = encrypt_file(fp, password=password)
+                    else:
+                        result = encrypt_file(fp, key)
+                    out_path = str(result) if result is not None else fp + ".encrypted"
+                    if os.path.exists(out_path):
+                        successes.append(out_path)
+                    else:
+                        failures.append((fp, "output not found"))
+                except Exception as e:
+                    failures.append((fp, str(e)))
+            if successes:
+                summary = f"Encrypted {len(successes)} of {total} files."
+                messagebox.showinfo("Success", summary)
+                self._set_status(summary)
+            if failures and not successes:
+                messagebox.showerror("Error", f"Encryption failed for {len(failures)} files. See console for details.")
+                self._set_status("Encryption failed")
+            elif failures:
+                messagebox.showwarning("Partial", f"Encryption completed with {len(failures)} failures. See console for details.")
         except Exception as e:
             messagebox.showerror("Error", f"Encryption failed: {e}")
             self._set_status("Encryption failed")
@@ -149,8 +175,8 @@ class EncryptionApp(tk.Tk):
             self._enable_buttons()
 
     def decrypt(self):
-        if not self.file_path:
-            messagebox.showerror("Error", "No file selected to decrypt.")
+        if not self.file_paths:
+            messagebox.showerror("Error", "No file(s) selected to decrypt.")
             return
         mode = self.mode.get()
         key = self.key_path.get().strip() or "secret.key"
@@ -162,19 +188,33 @@ class EncryptionApp(tk.Tk):
         self._disable_buttons()
         self._set_status("Decrypting...")
 
+        successes = []
+        failures = []
+        total = len(self.file_paths)
         try:
-            if mode == "password":
-                decrypted_path = decrypt_file(self.file_path, password=password)
-            else:
-                decrypted_path = decrypt_file(self.file_path, key)
-            out = str(decrypted_path) if decrypted_path is not None else None
-
-            if out and os.path.exists(out):
-                messagebox.showinfo("Success", f"File decrypted: {out}")
-                self._set_status(f"Decrypted: {out}")
-            else:
-                messagebox.showwarning("Warning", "Decryption completed but output file not found. Check console for details.")
-                self._set_status("Decryption finished (no output found)")
+            for idx, fp in enumerate(self.file_paths, start=1):
+                self._set_status(f"Decrypting {idx}/{total}: {os.path.basename(fp)}")
+                try:
+                    if mode == "password":
+                        result = decrypt_file(fp, password=password)
+                    else:
+                        result = decrypt_file(fp, key)
+                    out_path = str(result) if result is not None else None
+                    if out_path and os.path.exists(out_path):
+                        successes.append(out_path)
+                    else:
+                        failures.append((fp, "output not found"))
+                except Exception as e:
+                    failures.append((fp, str(e)))
+            if successes:
+                summary = f"Decrypted {len(successes)} of {total} files."
+                messagebox.showinfo("Success", summary)
+                self._set_status(summary)
+            if failures and not successes:
+                messagebox.showerror("Error", f"Decryption failed for {len(failures)} files. See console for details.")
+                self._set_status("Decryption failed")
+            elif failures:
+                messagebox.showwarning("Partial", f"Decryption completed with {len(failures)} failures. See console for details.")
         except Exception as e:
             messagebox.showerror("Error", f"Decryption failed: {e}")
             self._set_status("Decryption failed")
